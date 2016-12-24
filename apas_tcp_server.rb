@@ -7,7 +7,7 @@ class ApasTCPServer
 
   def initialize(opts)
     @port = opts[:port] || '4040'
-    @logger = opts[:logger] || Logger.new(STDOUT)
+    @logger = opts[:logger] || Logger.new('apas.log')
     @debug = opts[:debug]
     @server = TCPServer.new(port)
     @api_root_url = opts[:api_root_url] || 'http://localhost:4000/'
@@ -25,13 +25,21 @@ class ApasTCPServer
           command, value = msg.chomp(';').split('=')
           command = command.gsub(/^AT_/, '')
 
-          request_body = URI.encode_www_form(command: command, value: value)
-          logger.info(request_body) if debug
+          logger.info(msg) if @debug
 
           begin
-            Excon.post(api_root_url,
-                       path: '/api/event',
-                       body: request_body)
+            case command
+              when 'pour_amb'
+                request_body = URI.encode_www_form(volume: value)
+                Excon.post(api_root_url,
+                           path: '/api/pourings',
+                           body: request_body,
+                           headers: {'Content-Type' => 'application/x-www-form-urlencoded'})
+              when 'bottle_changed'
+                Excon.post(api_root_url,
+                           path: '/api/bottle_changes')
+            end
+
           rescue
             logger.error("API Server is not available, request is not sent: #{request_body}")
           end
